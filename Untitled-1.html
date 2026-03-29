@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OOTD 時尚天氣助理 Pro Cloud</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // 這裡已經填入你的專案金鑰
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgn6uowbkJ8N1dsHsWOPEIxGicLh1CBm0",
+            authDomain: "ootd-5cc68.firebaseapp.com",
+            projectId: "ootd-5cc68",
+            storageBucket: "ootd-5cc68.firebasestorage.app",
+            messagingSenderId: "577617379884",
+            appId: "1:577617379884:web:5351a242bb9eebd4f18789",
+            measurementId: "G-3E995N2NNG"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        window.db = db;
+
+        console.log("Firebase Cloud Ready");
+        document.getElementById('cloud-indicator').classList.replace('bg-slate-300', 'bg-green-500');
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; color: #0f172a; -webkit-font-smoothing: antialiased; padding-bottom: 120px; }
+        .font-heavy { font-weight: 950 !important; }
+        .font-black { font-weight: 900 !important; }
+        .weather-glow { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 50% -20%, rgba(99, 102, 241, 0.15), transparent); z-index: -1; pointer-events: none; }
+        .advice-box { background: #334155; border-radius: 2rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+        .ootd-main-card { background: #0f172a; border-radius: 2.5rem; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+        .style-btn { @apply py-4 rounded-2xl text-[13px] font-[900] transition-all border tracking-widest text-center; }
+        .active { background: #ffffff; color: #0f172a; border-color: #ffffff; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+        .inactive { background: rgba(255, 255, 255, 0.05); color: #64748b; border-color: transparent; }
+        .ootd-item-row { @apply flex items-center justify-between p-6 bg-slate-800/80 rounded-[1.8rem] border border-white/10 mb-4 transition-all; }
+        .ootd-item-text { color: #ffffff !important; font-weight: 950 !important; @apply text-xl tracking-tight; }
+        .stat-card { background: #ffffff; border-radius: 2.5rem; border: 1px solid #e2e8f0; @apply py-6 px-2 flex flex-col items-center justify-center text-center shadow-sm; }
+        .stat-label { @apply text-[11px] font-[900] text-slate-500 uppercase tracking-[0.2em] mb-1.5 block; }
+        .stat-value { font-weight: 950 !important; @apply text-2xl text-slate-950 tracking-tighter; }
+        .tab-bar { @apply fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-white/80 backdrop-blur-xl border border-slate-200 rounded-[2.5rem] p-2 flex justify-between items-center shadow-2xl z-50; }
+        .tab-item { @apply flex-1 flex flex-col items-center py-3 rounded-[2rem] transition-all text-slate-400; }
+        .tab-item.active { @apply bg-slate-950 text-white shadow-lg; }
+        .page-content { display: none; animation: fadeIn 0.4s ease-out forwards; }
+        .page-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .trend-row { @apply flex items-center justify-between py-4 border-b border-slate-50 last:border-none; }
+    </style>
+</head>
+
+<body class="flex items-start justify-center p-6 text-center">
+<div class="weather-glow" id="glow"></div>
+
+<div class="w-full max-w-md mt-4">
+    <div class="flex justify-between items-end mb-8 px-2 text-left">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <div id="cloud-indicator" class="w-2 h-2 bg-slate-300 rounded-full animate-pulse"></div>
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cloud Sync</span>
+            </div>
+            <h1 id="location-name" class="text-4xl font-heavy tracking-tighter text-slate-950 mb-1">確認位置...</h1>
+            <p id="date-now" class="text-sm font-black text-slate-600 uppercase tracking-widest"></p>
+        </div>
+        <button onclick="getLocation()" class="p-4 bg-white rounded-3xl shadow-sm border border-slate-100 active:scale-90 transition">
+            <i data-lucide="map-pin" class="w-6 h-6 text-indigo-500"></i>
+        </button>
+    </div>
+
+    <div id="page-ootd" class="page-content active text-left">
+        <div id="alert" class="advice-box p-8 mb-6 text-white relative overflow-hidden">
+            <div class="flex items-center gap-3 mb-4 text-indigo-300">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span class="text-[10px] font-black uppercase tracking-[0.3em] italic text-slate-400">Daily Wisdom</span>
+            </div>
+            <h2 id="alert-headline" class="text-lg font-heavy mb-1 italic text-white">正在同步雲端...</h2>
+            <p id="alert-text" class="text-sm text-slate-100 font-black mb-4 leading-relaxed"></p>
+            <hr class="border-white/10 mb-4">
+            <p id="philosophy-quote" class="text-[13px] text-slate-400 italic font-medium leading-relaxed"></p>
+        </div>
+
+        <div class="ootd-main-card p-8 mb-8">
+            <h3 class="text-[10px] font-black text-white uppercase tracking-[0.4em] mb-6 text-center">OOTD 穿著指南</h3>
+            <div class="style-grid mb-10">
+                <button onclick="changeStyle('street')" id="street" class="style-btn active">美式街頭</button>
+                <button onclick="changeStyle('minimal')" id="minimal" class="style-btn inactive">日系簡約</button>
+                <button onclick="changeStyle('office')" id="office" class="style-btn inactive">都會韓系</button>
+            </div>
+            <div id="ootd-items" class="space-y-4 mb-6"></div>
+            
+            <div class="bg-white/5 border border-white/10 p-5 rounded-[2rem] flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 bg-[#1DB954] rounded-xl flex items-center justify-center shadow-lg">
+                        <i data-lucide="music" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Spotify Mood</span>
+                        <p id="music-vibe-text" class="text-xs font-heavy text-white italic tracking-tight">Syncing Vibe...</p>
+                    </div>
+                </div>
+                <i data-lucide="play-circle" class="w-6 h-6 text-green-500 opacity-60"></i>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mb-8 text-center">
+            <div class="stat-card"><span class="stat-label">體感</span><p id="temp-display" class="stat-value">--°</p></div>
+            <div class="stat-card"><span class="stat-label">降雨</span><p id="pop-display" class="stat-value text-indigo-600">--%</p></div>
+            <div class="stat-card"><span class="stat-label">濕度</span><p id="humidity-display" class="stat-value text-slate-950">--%</p></div>
+        </div>
+    </div>
+
+    <div id="page-life" class="page-content text-left">
+        <div class="space-y-6">
+            <div class="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                <h3 class="text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] mb-6">全方位生活指標</h3>
+                <div id="life-stats-container" class="space-y-5 text-sm font-black text-slate-700"></div>
+            </div>
+            <div class="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl">
+                <p id="life-tip" class="text-lg font-heavy leading-tight italic">正在分析數據...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-detail" class="page-content">
+        <h3 class="text-[11px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-4 text-left px-2">測站即時明細</h3>
+        <div class="grid grid-cols-2 gap-4 mb-4" id="detail-grid"></div>
+        
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-orange-50 p-6 rounded-[2rem] text-left">
+                <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-2">日出時間</span>
+                <p id="det-sunrise" class="text-xl font-heavy text-orange-900">--:--</p>
+            </div>
+            <div class="bg-indigo-50 p-6 rounded-[2rem] text-left">
+                <span class="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-2">日落時間</span>
+                <p id="det-sunset" class="text-xl font-heavy text-indigo-900">--:--</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm text-left mb-6">
+            <h3 class="text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] mb-6">七日逐日預報</h3>
+            <div id="cwa-weekly-table" class="space-y-1"></div>
+        </div>
+    </div>
+</div>
+
+<nav class="tab-bar">
+    <button onclick="switchPage('ootd')" id="tab-ootd" class="tab-item active"><i data-lucide="shirt" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest">穿搭</span></button>
+    <button onclick="switchPage('life')" id="tab-life" class="tab-item"><i data-lucide="sparkles" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest">生活</span></button>
+    <button onclick="switchPage('detail')" id="tab-detail" class="tab-item"><i data-lucide="bar-chart-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest">詳細</span></button>
+</nav>
+
+<script>
+    let currentData = {};
+    let currentStyle = "street";
+
+    const styleDatabase = { 
+        street: ["美式重磅 Tee", "寬版工裝褲", "高筒厚底球鞋"], 
+        minimal: ["棉麻襯衫", "白色直筒寬褲", "簡約帆布鞋"], 
+        office: ["合身圓領衫", "西裝九分褲", "黑色樂福鞋"] 
+    };
+
+    const quotes = ["「風格是你無需說話即可展現自己的方式。」", "「時尚會褪色，但風格永存。」", "「穿得像是你要去見你最大的仇人。」"];
+
+    function switchPage(pageId) {
+        document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        document.getElementById(`page-${pageId}`).classList.add('active');
+        document.getElementById(`tab-${pageId}`).classList.add('active');
+        lucide.createIcons();
+    }
+
+    async function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const { latitude: lat, longitude: lon } = pos.coords;
+                let name = "我的位置";
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=zh-TW`);
+                    const data = await res.json();
+                    name = (data.address.city || data.address.county || "") + (data.address.suburb || data.address.district || "");
+                } catch(e) {}
+                fetchWeather(lat, lon, name);
+            }, () => fetchWeather(24.16, 120.68, "台中市"));
+        }
+    }
+
+    async function fetchWeather(lat, lon, name) {
+        try {
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=precipitation_probability,apparent_temperature,relativehumidity_2m,uv_index,surface_pressure,visibility,cloudcover,dewpoint_2m,windgusts_10m&daily=temperature_2m_max,temperature_2m_min,weathercode,sunrise,sunset,precipitation_probability_max&timezone=auto`);
+            const data = await res.json();
+            currentData = data;
+            updateUI(data, name);
+        } catch (e) { console.error(e); }
+    }
+
+    function updateUI(data, name) {
+        const hour = new Date().getHours();
+        const cur = data.current_weather;
+        const pop = data.hourly.precipitation_probability[hour];
+        const temp = cur.temperature;
+
+        document.getElementById("location-name").innerText = name;
+        document.getElementById('date-now').innerText = new Date().toLocaleDateString('zh-TW', { month:'long', day:'numeric', weekday: 'long' });
+
+        document.getElementById("alert-headline").innerText = temp < 18 ? "冷風輕拂，多層次穿搭首選" : "暖陽高照，簡約風格正當時";
+        document.getElementById("alert-text").innerText = `降雨率 ${pop}%。${pop > 30 ? '出門記得帶把傘喔。' : '天氣穩定，適合展示你的 Style。'}`;
+        document.getElementById("philosophy-quote").innerText = quotes[Math.floor(Math.random() * quotes.length)];
+        
+        document.getElementById("temp-display").innerText = Math.round(temp) + "°";
+        document.getElementById("pop-display").innerText = pop + "%";
+        document.getElementById("humidity-display").innerText = data.hourly.relativehumidity_2m[hour] + "%";
+        
+        document.getElementById("music-vibe-text").innerText = pop > 30 ? "Rainy Jazz Radio ☕" : "City Walk Chill 🎧";
+
+        renderOOTD(temp, pop);
+        updateLifeStats(data);
+        renderDetails(data, hour);
+        renderWeeklyTable(data.daily);
+        lucide.createIcons();
+    }
+
+    function renderOOTD(temp, pop) {
+        let items = [...styleDatabase[currentStyle]];
+        if (pop > 40) items.push("機能防水外套");
+        document.getElementById("ootd-items").innerHTML = items.map(i => `
+            <div class="ootd-item-row group hover:bg-slate-700 transition"><span class="ootd-item-text">${i}</span><i data-lucide="chevron-right" class="w-6 h-6 text-white/30"></i></div>
+        `).join("");
+    }
+
+    async function changeStyle(s) {
+        currentStyle = s;
+        ["street", "minimal", "office"].forEach(id => document.getElementById(id).className = "style-btn " + (id === s ? "active" : "inactive"));
+        
+        // 【Firebase 雲端同步】
+        if(window.db) {
+            try {
+                await setDoc(doc(window.db, "user_prefs", "current_user"), { last_style: s, updated_at: new Date() });
+                console.log("Cloud synced");
+            } catch(e) { console.error(e); }
+        }
+        if (currentData.current_weather) updateUI(currentData, document.getElementById("location-name").innerText);
+    }
+
+    function updateLifeStats(data) {
+        const hour = new Date().getHours();
+        const pop = data.hourly.precipitation_probability[hour];
+        const uv = data.hourly.uv_index[hour];
+        const hum = data.hourly.relativehumidity_2m[hour];
+        const temp = data.current_weather.temperature;
+
+        const stats = [
+            { label: "空氣品質", val: "優良 (35)", icon: "wind" },
+            { label: "紫外線等級", val: uv < 3 ? "低量" : (uv < 6 ? "中量" : "強烈"), icon: "sun" },
+            { label: "曬衣指數", val: (pop > 20 || hum > 78) ? "建議室內" : "極佳", icon: "waves" },
+            { label: "洗車指數", val: pop > 30 ? "不宜" : "適合", icon: "car" },
+            { label: "感冒風險", val: temp < 16 ? "極高" : "較低", icon: "thermometer-snowflake" },
+            { label: "過敏預警", val: hum > 80 ? "開啟除濕" : "正常", icon: "frown" }
+        ];
+
+        document.getElementById("life-stats-container").innerHTML = stats.map(s => `
+            <div class="flex justify-between items-center py-1">
+                <span class="flex items-center gap-2"><i data-lucide="${s.icon}" class="w-4 h-4 text-slate-400"></i>${s.label}</span>
+                <span class="text-slate-950 font-heavy italic">${s.val}</span>
+            </div>
+        `).join('<hr class="border-slate-50">');
+        document.getElementById('life-tip').innerText = pop > 40 ? "預計有雨，建議室內活動，出門帶傘。" : "天氣條件適合外拍與運動，享受陽光吧！";
+        lucide.createIcons();
+    }
+
+    function renderDetails(data, hour) {
+        const details = [
+            { label: "地面氣壓", val: Math.round(data.hourly.surface_pressure[hour]) + " hPa" },
+            { label: "能見度", val: (data.hourly.visibility[hour]/1000).toFixed(1) + " KM" },
+            { label: "雲量覆蓋", val: data.hourly.cloudcover[hour] + " %" },
+            { label: "體感偏差", val: (data.hourly.apparent_temperature[hour] - data.current_weather.temperature).toFixed(1) + "°" }
+        ];
+        document.getElementById('detail-grid').innerHTML = details.map(d => `
+            <div class="stat-card"><span class="stat-label">${d.label}</span><p class="stat-value">${d.val}</p></div>
+        `).join('');
+        document.getElementById('det-sunrise').innerText = data.daily.sunrise[0].split('T')[1];
+        document.getElementById('det-sunset').innerText = data.daily.sunset[0].split('T')[1];
+    }
+
+    function renderWeeklyTable(daily) {
+        const weekdays = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+        document.getElementById('cwa-weekly-table').innerHTML = daily.time.map((t, i) => {
+            const date = new Date(t);
+            const rain = daily.precipitation_probability_max[i];
+            return `<div class="trend-row">
+                <span class="text-xs font-black w-12 ${i===0?'text-indigo-600':''}">${i===0?'今日':weekdays[date.getDay()]}</span>
+                <div class="flex-1 flex justify-center gap-4">
+                    <span class="text-xs font-black text-rose-500">${Math.round(daily.temperature_2m_max[i])}°</span>
+                    <span class="text-xs font-black text-blue-500">${Math.round(daily.temperature_2m_min[i])}°</span>
+                </div>
+                <span class="text-[10px] font-black italic ${rain > 30 ? 'text-cyan-600' : 'text-slate-300'}">${rain}%</span>
+            </div>`;
+        }).join("");
+    }
+
+    getLocation();
+</script>
+</body>
+</html>
